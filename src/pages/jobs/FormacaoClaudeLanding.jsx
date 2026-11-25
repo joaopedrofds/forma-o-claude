@@ -16,6 +16,18 @@ const BASE = '/jobs/formacao-claude/';
 const API_INSCRICAO = '/api/public/eventos/formacao-claude/inscricao';
 const API_VAGAS = '/api/public/eventos/formacao-claude/vagas'; // vagas restantes por turma (limite de 30)
 const PRECO = 2500;
+// Cupons de parceiros. A chave é o SHA-256 do código em maiúsculas (o código não aparece
+// no fonte da página). Valor = desconto em reais por participante.
+// Para criar outro cupom, gere o SHA-256 do código e adicione aqui.
+// O desconto aqui só mostra o valor na tela: o servidor (API de inscrição) e o Asaas
+// precisam validar o cupom e cobrar o valor certo.
+const CUPONS = {
+  '6ffbb87e10df60338342877f8fd9fce9021e3fcd78d19ad0895b0e6e189c5210': 100,
+};
+async function hashCupom(codigo) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codigo));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
 const INICIO_TURMA_1 = new Date('2026-12-07T19:00:00-03:00');
 
 const TURMAS = [
@@ -172,6 +184,28 @@ function Formulario() {
   const sucessoRef = useRef(null);
   const ultimaPessoa = useRef(null);
   const [vagas, setVagas] = useState(null); // { 'Turma 1': { limite, restantes }, ... }
+  const [cupomTexto, setCupomTexto] = useState('');
+  const [cupom, setCupom] = useState(null); // { codigo, desconto } quando válido
+  const [cupomMsg, setCupomMsg] = useState({ tipo: '', texto: '' });
+
+  async function aplicarCupom(valor = cupomTexto) {
+    const codigo = valor.trim().toUpperCase().replace(/\s+/g, '');
+    setCupomTexto(codigo);
+    if (!codigo) { setCupom(null); setCupomMsg({ tipo: '', texto: '' }); return; }
+    const desconto = CUPONS[await hashCupom(codigo)];
+    if (desconto) {
+      setCupom({ codigo, desconto });
+      setCupomMsg({ tipo: 'ok', texto: `Cupom aplicado: ${brl(desconto)} de desconto por participante.` });
+    } else {
+      setCupom(null);
+      setCupomMsg({ tipo: 'bad', texto: 'Cupom não encontrado. Confira o código e tente de novo.' });
+    }
+  }
+  // Link de parceiro: ?cupom=CODIGO já preenche e aplica
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('cupom');
+    if (c) aplicarCupom(c);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const carregarVagas = () => fetch(API_VAGAS).then((r) => (r.ok ? r.json() : null)).then((v) => v && setVagas(v)).catch(() => {});
   useEffect(() => { carregarVagas(); }, []);
@@ -190,6 +224,8 @@ function Formulario() {
   };
 
   const total = (euVou ? 1 : 0) + pessoas.length;
+  const desconto = cupom ? cupom.desconto : 0;
+  const valorTotal = (n) => n * Math.max(0, PRECO - desconto);
 
   const campo = (k, v) => setDados((d) => ({ ...d, [k]: k === 'whatsapp' ? mascaraTelefone(v) : v }));
   const campoPessoa = (id, k, v) => setPessoas((ps) => ps.map((p) => (p.id === id ? { ...p, [k]: k === 'whatsapp' ? mascaraTelefone(v) : v } : p)));
@@ -215,6 +251,7 @@ function Formulario() {
       eu_vou: euVou,
       participantes: pessoas.map((p) => ({ nome: p.nome, email: p.email, whatsapp: p.whatsapp, cargo: p.cargo, turma: p.turma === 'mesma' ? turma : p.turma })),
       consentimento: true,
+      cupom: cupom ? cupom.codigo : '',
       site: honeypot.current?.value || '',
       origem: ['utm_source', 'utm_medium', 'utm_campaign', 'ref'].reduce((o, k) => ({ ...o, [k]: q.get(k) || '' }), {}),
     };
@@ -224,7 +261,7 @@ function Formulario() {
       const json = await res.json().catch(() => ({}));
       if (res.status === 409) carregarVagas();
       if (!res.ok) throw new Error(json.error || 'Não foi possível enviar agora. Tente de novo em instantes.');
-      setResultado({ inscritos: json.inscritos ?? total, ja: json.ja_inscritos ?? 0 });
+      setResultado({ inscritos: json.inscritos ?? total, ja: json.ja_inscritos ?? 0, desconto });
       setEstado('feito');
       setTimeout(() => {
         document.getElementById('inscricao')?.scrollIntoView({ behavior: 'smooth' });
@@ -245,7 +282,7 @@ function Formulario() {
           <div className="icon"><Icone n="check" largura={2.6} style={{ width: 30, height: 30 }} /></div>
           <h3>Inscrição recebida!</h3>
           <p>
-            {n === 1 ? '1 participante inscrito' : `${n} participantes inscritos`} ({brl(n * PRECO)}). Vamos confirmar as vagas pelo
+            {n === 1 ? '1 participante inscrito' : `${n} participantes inscritos`} ({brl(n * Math.max(0, PRECO - (resultado.desconto || 0)))}). Vamos confirmar as vagas pelo
             WhatsApp e enviar o boleto por e-mail.
             {resultado.ja > 0 && ` ${resultado.ja === 1 ? '1 pessoa já estava inscrita' : `${resultado.ja} pessoas já estavam inscritas`} e não foi duplicada.`}
           </p>
@@ -320,9 +357,36 @@ function Formulario() {
         {/* armadilha para robô: pessoas não veem este campo */}
         <input ref={honeypot} type="text" name="site" tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
 
+        <div className="fs">
+          <div className="fs-title">4. Cupom <span style={{ color: 'var(--muted)', letterSpacing: 0, textTransform: 'none', fontWeight: 600 }}>(opcional)</span></div>
+          <div className="coupon">
+            <label className="f" htmlFor="cupom" style={{ flex: 1, minWidth: 0 }}>
+              Código do cupom
+              <input
+                id="cupom" name="cupom" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                value={cupomTexto}
+                onChange={(e) => { setCupomTexto(e.target.value); if (cupom) { setCupom(null); setCupomMsg({ tipo: '', texto: '' }); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarCupom(); } }}
+              />
+            </label>
+            <button type="button" className="btn btn-ghost" onClick={() => aplicarCupom()}>Aplicar</button>
+          </div>
+          <div className={`coupon-msg ${cupomMsg.tipo}`} role="status" aria-live="polite">{cupomMsg.texto}</div>
+        </div>
+
         <div className="summary">
-          <div><div className="t">Total de participantes: <b>{total}</b></div><div className="t">R$ 2.500 por pessoa · boleto após a confirmação</div></div>
-          <div className="v grad-text">{brl(total * PRECO)}</div>
+          <div>
+            <div className="t">Total de participantes: <b>{total}</b></div>
+            <div className="t">
+              {cupom
+                ? `${brl(PRECO - cupom.desconto)} por pessoa com o cupom ${cupom.codigo} · boleto após a confirmação`
+                : 'R$ 2.500 por pessoa · boleto após a confirmação'}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            {cupom && <div className="t"><s>{brl(total * PRECO)}</s></div>}
+            <div className="v grad-text">{brl(valorTotal(total))}</div>
+          </div>
         </div>
 
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Autorizo a Escol.ai a usar os dados informados para entrar em contato sobre esta formação, conforme a LGPD. Posso revogar a autorização a qualquer momento.</label>
@@ -565,6 +629,7 @@ export default function FormacaoClaudeLanding() {
             <h2>Uma formação completa, <span className="grad-text">pronta para aplicar</span>.</h2>
             <div className="price-card">
               <div>
+                <div className="price-old"><span>De</span> <s>R$ 3.000</s> <span className="off">Desconto de R$ 500</span></div>
                 <div className="price grad-text">R$ 2.500</div>
                 <div className="per">por pessoa · 4 encontros presenciais noturnos</div>
                 <div className="per" style={{ fontSize: 16, fontWeight: 600, color: 'var(--muted)', marginTop: 10 }}>Pagamento por boleto, emitido depois que a inscrição é confirmada.</div>
