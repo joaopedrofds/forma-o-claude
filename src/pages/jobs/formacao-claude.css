@@ -117,6 +117,9 @@
 .fpc .price-card{margin-top:44px;background:linear-gradient(135deg,rgba(242,96,61,.14),rgba(91,69,232,.18));border:1px solid var(--line2);border-radius:28px;padding:44px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
 .fpc .price{font-size:clamp(56px,9vw,96px);font-weight:800;letter-spacing:-.04em;line-height:1}
 .fpc .price-card .per{font-size:20px;font-weight:700;color:var(--soft);margin-top:6px}
+.fpc .price-old{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:22px;font-weight:700;color:var(--muted)}
+.fpc .price-old s{text-decoration-thickness:2px;text-decoration-color:var(--coral)}
+.fpc .price-old .off{font-size:13px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--grad);padding:5px 12px;border-radius:999px}
 .fpc .checks{display:grid;gap:12px}
 .fpc .checks div{display:flex;gap:12px;align-items:flex-start;font-size:16px}
 .fpc .checks svg{flex:0 0 20px;width:20px;height:20px;stroke:var(--violet);margin-top:2px}
@@ -149,6 +152,12 @@
 .fpc .person label.f input,.fpc .person label.f select{background:#16141D}
 .fpc .add{width:100%;margin-top:14px;border:1.5px dashed var(--line2);background:transparent;color:var(--text);border-radius:16px;padding:16px;font:700 15px 'Manrope',sans-serif;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px}
 .fpc .add:hover{border-color:var(--violet);background:rgba(154,120,242,.06)}
+.fpc .coupon{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.fpc .coupon label.f input{text-transform:uppercase;letter-spacing:.06em}
+.fpc .coupon .btn{padding:13px 22px}
+.fpc .coupon-msg{font-size:14px;margin-top:10px;min-height:20px;color:var(--muted)}
+.fpc .coupon-msg.ok{color:#7FE0B0}
+.fpc .coupon-msg.bad{color:#F79A84}
 .fpc .summary{margin-top:28px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 22px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
 .fpc .summary .t{font-size:14px;color:var(--muted)}
 .fpc .summary .v{font-size:28px;font-weight:800}
