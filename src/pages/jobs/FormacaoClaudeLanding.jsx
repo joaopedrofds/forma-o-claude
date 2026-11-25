@@ -17,7 +17,7 @@ const API_INSCRICAO = '/api/public/eventos/formacao-claude/inscricao';
 const API_VAGAS = '/api/public/eventos/formacao-claude/vagas'; // vagas restantes por turma (limite de 30)
 const PRECO = 2500;
 // Cupons de parceiros. A chave é o SHA-256 do código em maiúsculas (o código não aparece
-// no fonte da página). Valor = desconto em reais, aplicado uma vez por inscrição.
+// no fonte da página). Valor = desconto em reais por participante.
 // Para criar outro cupom, gere o SHA-256 do código e adicione aqui.
 // O desconto aqui só mostra o valor na tela: o servidor (API de inscrição) e o Asaas
 // precisam validar o cupom e cobrar o valor certo.
@@ -195,7 +195,7 @@ function Formulario() {
     const desconto = CUPONS[await hashCupom(codigo)];
     if (desconto) {
       setCupom({ codigo, desconto });
-      setCupomMsg({ tipo: 'ok', texto: `Cupom aplicado: ${brl(desconto)} de desconto nesta inscrição.` });
+      setCupomMsg({ tipo: 'ok', texto: `Cupom aplicado: ${brl(desconto)} de desconto por participante.` });
     } else {
       setCupom(null);
       setCupomMsg({ tipo: 'bad', texto: 'Cupom não encontrado. Confira o código e tente de novo.' });
@@ -225,7 +225,7 @@ function Formulario() {
 
   const total = (euVou ? 1 : 0) + pessoas.length;
   const desconto = cupom ? cupom.desconto : 0;
-  const valorTotal = (n) => Math.max(0, n * PRECO - desconto);
+  const valorTotal = (n) => n * Math.max(0, PRECO - desconto);
 
   const campo = (k, v) => setDados((d) => ({ ...d, [k]: k === 'whatsapp' ? mascaraTelefone(v) : v }));
   const campoPessoa = (id, k, v) => setPessoas((ps) => ps.map((p) => (p.id === id ? { ...p, [k]: k === 'whatsapp' ? mascaraTelefone(v) : v } : p)));
@@ -282,7 +282,7 @@ function Formulario() {
           <div className="icon"><Icone n="check" largura={2.6} style={{ width: 30, height: 30 }} /></div>
           <h3>Inscrição recebida!</h3>
           <p>
-            {n === 1 ? '1 participante inscrito' : `${n} participantes inscritos`} ({brl(Math.max(0, n * PRECO - (resultado.desconto || 0)))}). Vamos confirmar as vagas pelo
+            {n === 1 ? '1 participante inscrito' : `${n} participantes inscritos`} ({brl(n * Math.max(0, PRECO - (resultado.desconto || 0)))}). Vamos confirmar as vagas pelo
             WhatsApp e enviar o boleto por e-mail.
             {resultado.ja > 0 && ` ${resultado.ja === 1 ? '1 pessoa já estava inscrita' : `${resultado.ja} pessoas já estavam inscritas`} e não foi duplicada.`}
           </p>
@@ -379,7 +379,7 @@ function Formulario() {
             <div className="t">Total de participantes: <b>{total}</b></div>
             <div className="t">
               {cupom
-                ? `${brl(PRECO)} por pessoa · cupom ${cupom.codigo}: ${brl(cupom.desconto)} de desconto · boleto após a confirmação`
+                ? `${brl(PRECO - cupom.desconto)} por pessoa com o cupom ${cupom.codigo} · boleto após a confirmação`
                 : 'R$ 2.500 por pessoa · boleto após a confirmação'}
             </div>
           </div>
